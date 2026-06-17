@@ -1,0 +1,115 @@
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f6f7f9;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* App container */
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: auto;
+  margin: auto;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+/* Header */
+.header {
+  background: #232f3e;   /* Amazon dark header */
+  color: white;
+  padding: 14px 18px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.title-icon {
+  width: 58px;
+  height: 58px;
+}
+
+
+/* Chat area */
+.chat-box {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #ffffff;
+}
+
+/* Message bubbles */
+.msg {
+  padding: 10px 14px;
+  border-radius: 10px;
+  max-width: 75%;
+  white-space: pre-line;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* User message */
+.msg.user {
+  background: #e7f3ff;
+  align-self: flex-end;
+  border: 1px solid #d0e3ff;
+}
+
+/* Assistant message */
+.msg.assistant {
+  background: #f2f3f5;
+  align-self: flex-start;
+  border: 1px solid #e0e0e0;
+}
+
+/* Input area */
+.input-box {
+  display: flex;
+  padding: 12px;
+  background: #fafafa;
+  border-top: 1px solid #e5e5e5;
+  gap: 10px;
+}
+
+input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  outline: none;
+  font-size: 14px;
+}
+
+input:focus {
+  border-color: #0073bb;
+}
+
+/* Send button */
+button {
+  background: #0073bb; /* Amazon blue */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #005f99;
+}
+
