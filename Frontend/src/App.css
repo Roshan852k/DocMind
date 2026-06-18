@@ -8,7 +8,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* App container */
 .app {
   height: 100vh;
   display: flex;
@@ -16,16 +15,7 @@ body {
   max-width: auto;
   margin: auto;
   background: white;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-}
-
-/* Header */
-.header {
-  background: #232f3e;   /* Amazon dark header */
-  color: white;
-  padding: 14px 18px;
-  font-size: 18px;
-  font-weight: bold;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .chat-title {
@@ -40,8 +30,6 @@ body {
   height: 58px;
 }
 
-
-/* Chat area */
 .chat-box {
   flex: 1;
   padding: 16px;
@@ -52,7 +40,6 @@ body {
   background: #ffffff;
 }
 
-/* Message bubbles */
 .msg {
   padding: 10px 14px;
   border-radius: 10px;
@@ -62,21 +49,18 @@ body {
   line-height: 1.4;
 }
 
-/* User message */
 .msg.user {
   background: #e7f3ff;
   align-self: flex-end;
   border: 1px solid #d0e3ff;
 }
 
-/* Assistant message */
 .msg.assistant {
   background: #f2f3f5;
   align-self: flex-start;
   border: 1px solid #e0e0e0;
 }
 
-/* Input area */
 .input-box {
   display: flex;
   padding: 12px;
@@ -98,9 +82,8 @@ input:focus {
   border-color: #0073bb;
 }
 
-/* Send button */
 button {
-  background: #0073bb; /* Amazon blue */
+  background: #0073bb;
   color: white;
   border: none;
   border-radius: 8px;
@@ -113,3 +96,115 @@ button:hover {
   background: #005f99;
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input:disabled {
+  background: #f0f0f0;
+  color: #888;
+}
+
+.live-panel {
+  padding: 10px 12px;
+  background: #f0f4f8;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.live-toggle-row {
+  display: flex;
+  align-items: center;
+}
+
+.live-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.live-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.live-upload-btn {
+  width: auto;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.live-doc-badge {
+  font-size: 13px;
+  color: #005f99;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.live-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.live-switch-slider {
+  width: 44px;
+  height: 24px;
+  background: #c8c8c8;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.live-switch-slider::after {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.live-switch input:checked + .live-switch-slider {
+  background: #0073bb;
+}
+
+.live-switch input:checked + .live-switch-slider::after {
+  transform: translateX(20px);
+}
+
+.live-switch input:focus-visible + .live-switch-slider {
+  outline: 2px solid #0073bb;
+  outline-offset: 2px;
+}
+
+.live-switch-label {
+  font-size: 14px;
+  color: #333;
+}
