@@ -42,7 +42,8 @@ PDF_FOLDER = (
     else _pdf
 )
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "rag_collection")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "knowledge_base")
+USER_UPLOAD_COLLECTION_NAME = os.getenv("USER_UPLOAD_COLLECTION_NAME", "user_uploads")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
@@ -228,6 +229,28 @@ def build_embeddings() -> HuggingFaceEmbeddings:
     )
 
 
+def _ensure_user_upload_vectorstore(
+    client: QdrantClient, embeddings: HuggingFaceEmbeddings
+) -> QdrantVectorStore:
+    """Separate Qdrant collection for live user PDFs (policy stays in COLLECTION_NAME)."""
+    name = USER_UPLOAD_COLLECTION_NAME
+    if not client.collection_exists(collection_name=name):
+        dim = len(embeddings.embed_documents(["__dim_probe__"])[0])
+        client.create_collection(
+            collection_name=name,
+            vectors_config=qmodels.VectorParams(
+                size=dim,
+                distance=qmodels.Distance.COSINE,
+            ),
+        )
+        logger.info("Created Qdrant collection %r for user uploads (dim=%s).", name, dim)
+    return QdrantVectorStore(
+        client=client,
+        collection_name=name,
+        embedding=embeddings,
+    )
+
+
 def _raise_if_qdrant_unreachable(exc: BaseException) -> None:
     msg = str(exc).lower()
     if "connection refused" in msg or "errno 111" in msg or "failed to establish" in msg:
@@ -256,7 +279,7 @@ def initialize_rag():
             points_count,
         )
         docs = load_pdfs(PDF_FOLDER)
-        vectorstore = create_vectorstore(docs, embeddings)
+        policy_vectorstore = create_vectorstore(docs, embeddings)
     else:
         logger.info(
             "Qdrant index already present — skipping build (collection=%r url=%s points=%s).",
@@ -264,13 +287,14 @@ def initialize_rag():
             QDRANT_URL,
             points_count,
         )
-        vectorstore = QdrantVectorStore(
+        policy_vectorstore = QdrantVectorStore(
             client=client,
             collection_name=COLLECTION_NAME,
             embedding=embeddings,
         )
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_K})
+    retriever = policy_vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_K})
+    user_vectorstore = _ensure_user_upload_vectorstore(client, embeddings)
     llm = None
     if os.environ.get("GROQ_API_KEY"):
         llm = ChatGroq(model=LLM_MODEL, temperature=LLM_TEMPERATURE)
@@ -278,17 +302,18 @@ def initialize_rag():
         logger.warning(
             "GROQ_API_KEY not set — /chat disabled until set in Backend/.env."
         )
-    return vectorstore, retriever, llm
+    return policy_vectorstore, retriever, user_vectorstore, llm
 
 
 INIT_ERROR: str | None = None
-vectorstore: QdrantVectorStore | None = None
+policy_vectorstore: QdrantVectorStore | None = None
+user_vectorstore: QdrantVectorStore | None = None
 try:
-    vectorstore, retriever, llm = initialize_rag()
+    policy_vectorstore, retriever, user_vectorstore, llm = initialize_rag()
 except Exception as e:
     INIT_ERROR = str(e)
     logger.exception("Init failed: %s", e)
-    vectorstore, retriever, llm = None, None, None
+    policy_vectorstore, retriever, user_vectorstore, llm = None, None, None, None
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = max(20 * 1024 * 1024, LIVE_UPLOAD_MAX_BYTES + 1024 * 1024)
@@ -301,7 +326,9 @@ def health():
     body: dict = {
         "status": "ok" if ok else "bad",
         "vector_index": "ready" if retriever else "missing",
-        "live_upload": "ready" if vectorstore else "missing",
+        "policy_collection": COLLECTION_NAME,
+        "user_upload_collection": USER_UPLOAD_COLLECTION_NAME,
+        "live_upload": "ready" if user_vectorstore else "missing",
         "llm": "ready" if llm else "missing",
     }
     if not ok and INIT_ERROR:
@@ -313,8 +340,8 @@ def health():
 
 @app.route("/live/upload", methods=["POST"])
 def live_upload():
-    """Accept a user PDF, chunk + embed into Qdrant tagged with a session id (live Q&A only)."""
-    if not vectorstore:
+    """Chunk + embed user PDF into USER_UPLOAD_COLLECTION_NAME (not policy collection)."""
+    if not user_vectorstore:
         return jsonify(
             {"error": "Vector index not ready", "reason": INIT_ERROR or "unknown"}
         ), 503
@@ -373,7 +400,7 @@ def live_upload():
     chunks = splitter.split_documents(base_docs)
     point_ids = [str(uuid.uuid4()) for _ in chunks]
     try:
-        vectorstore.add_documents(documents=chunks, ids=point_ids)
+        user_vectorstore.add_documents(documents=chunks, ids=point_ids)
     except Exception as e:
         logger.exception("Live upload indexing failed: %s", e)
         _remove_live_session_user_dir(session_id)
@@ -398,7 +425,7 @@ def live_upload():
 
 @app.route("/live/session/<session_id>", methods=["DELETE"])
 def live_session_delete(session_id: str):
-    if not vectorstore:
+    if not user_vectorstore:
         return jsonify(
             {"error": "Vector index not ready", "reason": INIT_ERROR or "unknown"}
         ), 503
@@ -407,8 +434,8 @@ def live_session_delete(session_id: str):
         return jsonify({"error": "Invalid session id"}), 400
 
     try:
-        vectorstore.client.delete(
-            collection_name=COLLECTION_NAME,
+        user_vectorstore.client.delete(
+            collection_name=USER_UPLOAD_COLLECTION_NAME,
             points_selector=qmodels.FilterSelector(filter=_live_session_filter(sid)),
         )
     except Exception as e:
@@ -447,9 +474,9 @@ def chat():
     retrieval_query = _retrieval_query(query, history)
 
     if live_sid:
-        if not vectorstore:
-            return jsonify({"error": "Vector index not ready"}), 503
-        scoped = vectorstore.as_retriever(
+        if not user_vectorstore:
+            return jsonify({"error": "User upload index not ready"}), 503
+        scoped = user_vectorstore.as_retriever(
             search_kwargs={
                 "k": RETRIEVER_K,
                 "filter": _live_session_filter(live_sid),
